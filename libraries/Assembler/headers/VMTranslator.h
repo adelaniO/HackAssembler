@@ -28,6 +28,7 @@ namespace VMTranslator
                 return 1;
             }
 
+            return 0;
         }
 
         int write(const std::filesystem::path& outputFile);
