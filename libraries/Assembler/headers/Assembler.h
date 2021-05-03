@@ -1,5 +1,7 @@
 #pragma once
 
+#include <iostream>
+#include <fstream>
 #include <string>
 #include <sstream>
 #include <bitset>
@@ -268,7 +270,6 @@ namespace Assembler
     {
         std::filesystem::path outputFile{ inputFile };
         outputFile.replace_extension("hack");
-        std::cout << "Assembling " << inputFile << "\nOutputting to " << outputFile << '\n';
 
         // Open input
         std::ifstream input{ inputFile };
@@ -277,6 +278,7 @@ namespace Assembler
             std::cout << "Unable to open Input File\n";
             return 1;
         }
+        std::cout << "Assembling " << inputFile << "\nOutputting to " << outputFile << '\n';
 
         // First Pass
         std::string lineString;

@@ -2,6 +2,7 @@
 
 #include <string>
 #include <filesystem>
+#include <iostream>
 
 // Translate Hack.vm files to .asm
 

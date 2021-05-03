@@ -1,21 +1,22 @@
-cmake_minimum_required(VERSION 3.14.0...3.20)
+cmake_minimum_required(VERSION 3.14...3.20)
 project(
   HackAssembler 
   VERSION 0.1.0
   DESCRIPTION "Command line tool to convert the Jack language to Hack machine code"
+  LANGUAGES CXX
 )
-
-include(CTest)
-enable_testing()
-set(CPACK_PROJECT_NAME ${PROJECT_NAME})
-set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# ======== Project CLI ========
-add_executable(AssemblerCLI main.cpp Assembler.h VMTranslator.h)
+# ======== Assembler Library ========
+add_subdirectory(libraries/Assembler)
+
+# ======== Assembler CLI ========
+add_executable(AssemblerCLI applications/AssemblerCLI/main.cpp)
+target_link_libraries(AssemblerCLI PRIVATE AssemblerLib)
+target_include_directories(AssemblerCLI PUBLIC libraries/Assembler/headers)
 
 # ======== Googletest ========
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)

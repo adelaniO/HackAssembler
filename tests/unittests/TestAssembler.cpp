@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-TEST(Assembler, Example)
+TEST(Assembler, ParseLine)
 {
 	EXPECT_EQ(1, 1);
 }

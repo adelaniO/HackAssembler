@@ -1,8 +1,5 @@
 #include <filesystem>
 #include <iostream>
-#include <fstream>
-#include <vector>
-#include <bitset>
 
 #include "Assembler.h"
 #include "VMTranslator.h"
@@ -21,7 +18,7 @@ int main(int argc, char* argv[])
         Assembler::Assembler assembler;
         return assembler.parse(inputFile);
     }
-    if (inputFile.extension() == ".asm")
+    if (inputFile.extension() == ".vm")
     {
         VMTranslator::Translator translator;
         return translator.parse(inputFile);
