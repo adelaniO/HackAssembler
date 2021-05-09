@@ -1,6 +1,11 @@
 #include <gtest/gtest.h>
 
+
+#include "VMTranslator.h"
+
 TEST(VMTranslator, ParseLine)
 {
-	EXPECT_EQ(1, 1);
+    //VMTranslator::Translator translator;
+    //translator.parse();
+    EXPECT_EQ(1, 1);
 }

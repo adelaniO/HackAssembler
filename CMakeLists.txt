@@ -30,5 +30,5 @@ add_executable(
   tests/unittests/TestVMTranslator.cpp
   tests/unittests/TestAssembler.cpp
 )
-target_include_directories(UnitTester PRIVATE . dependencies)
-target_link_libraries(UnitTester PRIVATE gtest)
+target_link_libraries(UnitTester PRIVATE gtest AssemblerLib)
+target_include_directories(UnitTester PUBLIC . dependencies libraries/Assembler/headers)

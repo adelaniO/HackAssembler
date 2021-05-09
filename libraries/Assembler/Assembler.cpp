@@ -1,3 +1,4 @@
+#include <fstream>
 #include "headers/Assembler.h"
 
 namespace Assembler
@@ -48,20 +49,10 @@ namespace Assembler
         return error;
     }
 
-    std::string Assembler::trimSpaceAndComment(const std::string& line)
-    {
-        std::string lineString = line.substr(0, line.find("//")); // Ignore everything after a comment
-        char const* skip_set{ " \t\n" };
-        const auto endPos = lineString.find_first_of(skip_set);
-        if (endPos != std::string::npos)
-            lineString = lineString.substr(0, endPos); // Trim trailing whitespace
-        return lineString;
-    }
-
     LineParseResult Assembler::parseCodeLine(const std::string& line)
     {
         LineParseResult result;
-        std::string lineString = trimSpaceAndComment(line);
+        std::string lineString = Utilities::trimSpaceAndComment(line);
         const char& firstChar{ lineString[0] };
         if (firstChar == '(')
         {

@@ -20,7 +20,7 @@ int main(int argc, char* argv[])
     }
     if (inputFile.extension() == ".vm")
     {
-        VMTranslator::Translator translator;
+        VMTranslator::Translator translator(inputFile.filename().string());
         return translator.parse(inputFile);
     }
     else

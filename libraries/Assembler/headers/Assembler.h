@@ -1,13 +1,14 @@
 #pragma once
 
 #include <iostream>
-#include <fstream>
 #include <string>
 #include <sstream>
 #include <bitset>
 #include <map>
 #include <vector>
 #include <filesystem>
+
+#include "Utilities.h"
 
 namespace Assembler
 {
@@ -106,7 +107,6 @@ namespace Assembler
         bool startswith(const std::string& str, const std::string& cmp);
         void setBits(std::bitset<16>& bits, size_t start, const std::vector<bool>& values);
         int write(const std::filesystem::path& outputFile);
-        std::string trimSpaceAndComment(const std::string& line);
     private:
         std::map<std::string, std::bitset<16>> m_symbolToValue{initSymbols};
         unsigned long m_nextAvailableVariable{16};
