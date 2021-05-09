@@ -1,6 +1,5 @@
 #pragma once
 
-#include <filesystem>
 #include <iostream>
 #include <vector>
 
@@ -25,10 +24,10 @@ namespace VMTranslator
 
         int arg2(const std::string& line);
 
-        int parse(const std::filesystem::path& inputFile);
+        int parse(const fs::path& inputFile);
         std::pair<std::string, std::string> parseCodeLine(const std::string& line, const bool addComment = true);
 
-        int write(const std::filesystem::path& outputFile);
+        int write(const std::string& outputFile);
         void reset()
         {
             m_resultLines.clear();

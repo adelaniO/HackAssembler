@@ -16,7 +16,7 @@ add_subdirectory(libraries/Assembler)
 # ======== Assembler CLI ========
 add_executable(AssemblerCLI applications/AssemblerCLI/main.cpp)
 target_link_libraries(AssemblerCLI PRIVATE AssemblerLib)
-target_include_directories(AssemblerCLI PUBLIC libraries/Assembler/headers)
+target_include_directories(AssemblerCLI PUBLIC libraries/Assembler)
 
 # ======== Googletest ========
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
@@ -31,4 +31,4 @@ add_executable(
   tests/unittests/TestAssembler.cpp
 )
 target_link_libraries(UnitTester PRIVATE gtest AssemblerLib)
-target_include_directories(UnitTester PUBLIC . dependencies libraries/Assembler/headers)
+target_include_directories(UnitTester PUBLIC . dependencies libraries/Assembler)

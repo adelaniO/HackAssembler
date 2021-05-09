@@ -6,7 +6,6 @@
 #include <bitset>
 #include <map>
 #include <vector>
-#include <filesystem>
 
 #include "Utilities.h"
 
@@ -99,14 +98,14 @@ namespace Assembler
     class Assembler
     {
     public:
-        int parse(const std::filesystem::path& inputFile);
+        int parse(const fs::path& inputFile);
         void reset();
         std::string parseSymbolLine(const std::string& line, unsigned long& symbolLine);
         LineParseResult parseCodeLine(const std::string& line);
     private:
         bool startswith(const std::string& str, const std::string& cmp);
         void setBits(std::bitset<16>& bits, size_t start, const std::vector<bool>& values);
-        int write(const std::filesystem::path& outputFile);
+        int write(const std::string& outputFile);
     private:
         std::map<std::string, std::bitset<16>> m_symbolToValue{initSymbols};
         unsigned long m_nextAvailableVariable{16};

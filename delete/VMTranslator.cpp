@@ -82,7 +82,9 @@ namespace VMTranslator
         while (input)
         {
             std::getline(input >> std::ws, lineString);
-            const auto [error, result] = parseCodeLine(lineString);
+            const auto parsed = parseCodeLine(lineString);
+            const auto error = parsed.first;
+            const auto result parsed.second;
             if(!error.empty())
             {
                 std::cerr << "ln-" + std::to_string(lineNumber) + ": " + error;
