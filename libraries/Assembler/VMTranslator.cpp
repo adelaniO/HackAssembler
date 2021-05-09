@@ -1,3 +1,4 @@
+#include "VMTranslator.h"
 #include <fstream>
 #include "VMTranslator.h"
 
@@ -222,6 +223,18 @@ namespace VMTranslator
                 result += "@SP\nA=M-1\nM=!M\n";
             else
                 return {"C_ARITHMETIC: Invalid instruction", ""};
+        }
+        else if(cmdType == VMCommandType::C_GOTO)
+        {
+            //const std::string id = "."+ std::to_string(m_VMCodeCount);
+            if(splitCode.size() < 2)
+                return {"C_GOTO: Insufficient instructions", ""};
+            if(splitCode[0] == "goto")
+                result += "@" + splitCode[1] + "\n0;JMP\n";
+            else if(splitCode[0] == "if-goto")
+                result += "@SP\nAM=M-1\nD=M\n@" + splitCode[1] + "\nD;JNE\n";
+            else if(splitCode[0] == "label")
+                result += "(" + splitCode[1] + ")\n";
         }
 
         incCodeCount();
