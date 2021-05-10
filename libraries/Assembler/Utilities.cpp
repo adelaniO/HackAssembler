@@ -34,9 +34,9 @@ namespace fs
     path::path(const std::string& path)
     {
         const size_t lastDot = path.find_last_of('.');
-        if(lastDot != std::string::npos)
-            m_ext = path.substr(lastDot);
         const size_t lastSlash = path.find_last_of("/\\");
+        if(lastDot != std::string::npos && lastDot > lastSlash)
+            m_ext = path.substr(lastDot);
         if(lastSlash != std::string::npos)
             m_filename = path.substr(lastSlash + 1, lastDot - lastSlash - 1);
         m_path = path.substr(0, lastSlash + 1);

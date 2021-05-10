@@ -16,8 +16,8 @@ namespace fs
     {
     public:
         path(const std::string& path);
-        std::string filename() { return m_filename; }
-        std::string extension() {return m_ext; }
+        std::string filename() const { return m_filename; }
+        std::string extension() const {return m_ext; }
         void replace_extension(const std::string& newExt);
         std::string fullFileName() const { return m_path + m_filename + m_ext; }
     private:

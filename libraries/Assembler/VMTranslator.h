@@ -13,10 +13,8 @@ namespace VMTranslator
     class Translator
     {
     public:
-        Translator(const std::string& fileName) : m_fileName{fileName}
-        {
-            m_fileName = fileName.substr(0, fileName.size()-3);
-        }
+        Translator(const fs::path output) : m_output{output}
+        {}
 
         VMCommandType commandType(const std::string& line);
 
@@ -24,7 +22,8 @@ namespace VMTranslator
 
         int arg2(const std::string& line);
 
-        int parse(const fs::path& inputFile);
+        int parse(const std::vector<fs::path>& inputs);
+        int parseUnit(std::istream& input);
         std::pair<std::string, std::string> parseCodeLine(const std::string& line, const bool addComment = true);
 
         int write(const std::string& outputFile);
@@ -34,10 +33,12 @@ namespace VMTranslator
             m_VMCodeCount = 0;
         }
         int incCodeCount() { return m_VMCodeCount++; }
+        void setCurrentFile(std::string file) { m_fileName = file; }
 
     private:
         std::vector<std::string> m_resultLines;
         std::string m_fileName;
+        fs::path m_output;
         int m_VMCodeCount{0};
     };
 }

@@ -14,7 +14,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_subdirectory(libraries/Assembler)
 
 # ======== Assembler CLI ========
-add_executable(AssemblerCLI applications/AssemblerCLI/main.cpp)
+add_executable(AssemblerCLI applications/AssemblerCLI/main.cpp applications/AssemblerCLI/dirent.h)
 target_link_libraries(AssemblerCLI PRIVATE AssemblerLib)
 target_include_directories(AssemblerCLI PUBLIC libraries/Assembler)
 

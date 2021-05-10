@@ -1,4 +1,5 @@
 #include "VMTranslator.h"
+#include "VMTranslator.h"
 #include <fstream>
 #include "VMTranslator.h"
 
@@ -63,28 +64,44 @@ namespace VMTranslator
         }
     }
 
-    int VMTranslator::Translator::parse(const fs::path& inputFile)
+    int VMTranslator::Translator::parse(const std::vector<fs::path>& inputs)
     {
-        fs::path outputFile{ inputFile };
-        outputFile.replace_extension("asm");
-        // Open input
-        std::ifstream input{ inputFile.fullFileName() };
-        if (!input)
+        if(inputs.empty())
         {
-            std::cerr << "Unable to open Input File\n";
+            std::cerr << "No VM files found";
             return 1;
         }
-        std::cout << "Translating " << inputFile.fullFileName() << "\nOutputting to " << outputFile.fullFileName() << '\n';
+        for (size_t i = 0; i < inputs.size(); i++)
+        {
+            // Open input
+            const fs::path& inputFile = inputs[i];
+            setCurrentFile(inputFile.filename());
+            std::ifstream inputStream{ inputFile.fullFileName() };
+            if (!inputStream)
+            {
+                std::cerr << "Unable to open Input File\n";
+                return 1;
+            }
+            std::cout << "Translating " << inputFile.fullFileName() << "\nOutputting to " << m_output.filename() << '\n';
 
-        // First Pass
+            int retval = parseUnit(inputStream);
+            if (retval) return retval;
+        }
+        return write(m_output.fullFileName());
+    }
+
+    int Translator::parseUnit(std::istream& input)
+    {
         std::string lineString;
         int lineNumber{ 1 };
 
         while (input)
         {
             std::getline(input >> std::ws, lineString);
-            const auto [error, result] = parseCodeLine(lineString);
-            if(!error.empty())
+            const auto parsed = parseCodeLine(lineString);
+            const auto error = parsed.first;
+            const auto result = parsed.second;
+            if (!error.empty())
             {
                 std::cerr << "ln-" + std::to_string(lineNumber) + ": " + error;
                 return 1;
@@ -96,7 +113,7 @@ namespace VMTranslator
             lineNumber++;
             lineString.clear();
         }
-        return write(outputFile.fullFileName());
+        return 0;
     }
 
     std::pair<std::string, std::string> VMTranslator::Translator::parseCodeLine(const std::string& line, const bool addComment)
@@ -226,15 +243,29 @@ namespace VMTranslator
         }
         else if(cmdType == VMCommandType::C_GOTO)
         {
-            //const std::string id = "."+ std::to_string(m_VMCodeCount);
             if(splitCode.size() < 2)
                 return {"C_GOTO: Insufficient instructions", ""};
+
             if(splitCode[0] == "goto")
                 result += "@" + splitCode[1] + "\n0;JMP\n";
             else if(splitCode[0] == "if-goto")
                 result += "@SP\nAM=M-1\nD=M\n@" + splitCode[1] + "\nD;JNE\n";
             else if(splitCode[0] == "label")
                 result += "(" + splitCode[1] + ")\n";
+        }
+        else if(cmdType == VMCommandType::C_FUNCTION)
+        {
+            if (splitCode.size() < 3)
+                return { "C_FUNCTION: Insufficient instructions", "" };
+        }
+        else if(cmdType == VMCommandType::C_RETURN)
+        {}
+        else if(cmdType == VMCommandType::C_CALL)
+        {
+            if(splitCode.size() < 3)
+                return {"C_CALL: Insufficient instructions", ""};
+
+            const auto label = m_fileName + '.' + splitCode[2];
         }
 
         incCodeCount();
