@@ -70,7 +70,6 @@ namespace Assembler
         {
             std::stringstream ss(lineString);
             // A Instruction
-            bool hasVariable{};
             const auto symbol = lineString.substr(1);
             auto valueItr = m_symbolToValue.find(symbol);
             if (valueItr != m_symbolToValue.end())

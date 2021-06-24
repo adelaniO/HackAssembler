@@ -25,20 +25,21 @@ namespace VMTranslator
         int parse(const std::vector<fs::path>& inputs);
         int parseUnit(std::istream& input);
         std::pair<std::string, std::string> parseCodeLine(const std::string& line, const bool addComment = true);
+        void init();
 
         int write(const std::string& outputFile);
         void reset()
         {
             m_resultLines.clear();
-            m_VMCodeCount = 0;
+            m_id = 0;
         }
-        int incCodeCount() { return m_VMCodeCount++; }
+        int incID() { return m_id++; }
         void setCurrentFile(std::string file) { m_fileName = file; }
 
     private:
         std::vector<std::string> m_resultLines;
         std::string m_fileName;
         fs::path m_output;
-        int m_VMCodeCount{0};
+        int m_id{0};
     };
 }

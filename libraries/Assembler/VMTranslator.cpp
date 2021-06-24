@@ -32,7 +32,7 @@ namespace VMTranslator
         {
             return VMCommandType::C_GOTO;
         }
-        else if (line == "fucntion")
+        else if (line == "function")
         {
             return VMCommandType::C_FUNCTION;
         }
@@ -68,9 +68,17 @@ namespace VMTranslator
     {
         if(inputs.empty())
         {
-            std::cerr << "No VM files found";
+            std::cerr << "No VM files found\n";
             return 1;
         }
+
+        // Call Sys.init and set Stack pointer to 256
+        if(inputs.size() > 1) init();
+
+        std::cout << "Directory -> " << m_output.directory() << '\n';
+        std::cout << "__________________________\n";
+        std::cout << "| #\t| File\n";
+        std::cout << "__________________________\n";
         for (size_t i = 0; i < inputs.size(); i++)
         {
             // Open input
@@ -82,11 +90,14 @@ namespace VMTranslator
                 std::cerr << "Unable to open Input File\n";
                 return 1;
             }
-            std::cout << "Translating " << inputFile.fullFileName() << "\nOutputting to " << m_output.filename() << '\n';
+            std::cout << "| " << std::to_string(i) + ":\t| " << inputFile.filename() << '\n';
 
             int retval = parseUnit(inputStream);
+            inputStream.close();
             if (retval) return retval;
         }
+        std::cout << "__________________________\n";
+        std::cout << "Writing to -> " << m_output.fullFileName() << '\n';
         return write(m_output.fullFileName());
     }
 
@@ -116,10 +127,16 @@ namespace VMTranslator
         return 0;
     }
 
+    void VMTranslator::Translator::init()
+    {
+        const std::string result = "//Init\n@256\nD=A\n@SP\nM=D\n" + parseCodeLine("call Sys.init 0").second + "\n";
+        m_resultLines.push_back(result);
+    }
+
     std::pair<std::string, std::string> VMTranslator::Translator::parseCodeLine(const std::string& line, const bool addComment)
     {
-        auto codeLine = Utilities::trimComment(line);
-        auto splitCode = Utilities::splitBySpace(codeLine);
+        const auto codeLine = Utilities::trimComment(line);
+        const auto splitCode = Utilities::splitBySpace(codeLine);
         if(codeLine.empty() || splitCode.empty()) return {};
         std::string result{};
         if(addComment)
@@ -195,7 +212,7 @@ namespace VMTranslator
         }
         else if(cmdType == VMCommandType::C_ARITHMETIC)
         {
-            const std::string id = "."+ std::to_string(m_VMCodeCount);
+            const std::string id = "."+ std::to_string(incID());
             if(splitCode[0] == "add")
                 result += "@SP\nM=M-1\nA=M\nD=M\nM=0\nA=A-1\nM=D+M\n";
             else if(splitCode[0] == "sub")
@@ -257,18 +274,49 @@ namespace VMTranslator
         {
             if (splitCode.size() < 3)
                 return { "C_FUNCTION: Insufficient instructions", "" };
+
+            result += "(" + splitCode[1] + ")\n@SP\nA=M\n";
+            const int numVars = std::stoi(splitCode[2]);
+            for (int i = 0; i < numVars; i++)
+                result += "M=0\nA=A+1\n";
+            result += "D=A\n@SP\nM=D\n";
         }
         else if(cmdType == VMCommandType::C_RETURN)
-        {}
+        {
+            result += "@LCL\nD=M\n@R13\nM=D\n"; // LCL to temp (endFrame)
+            result += "@5\nD=A\n@LCL\nA=M-D\nD=M\n@R14\nM=D\n"; // retAddr to temp
+            result += "@SP\nA=M-1\nD=M\n@ARG\nA=M\nM=D\n"; // Move return value to arg0
+            result += "@ARG\nD=M+1\n@SP\nM=D\n"; // Reposition SP
+            result += "@1\nD=A\n@R13\nA=M-D\nD=M\n@THAT\nM=D\n"; // Restore caller THAT
+            result += "@2\nD=A\n@R13\nA=M-D\nD=M\n@THIS\nM=D\n"; // Restore caller THIS
+            result += "@3\nD=A\n@R13\nA=M-D\nD=M\n@ARG\nM=D\n"; // Restore caller ARG
+            result += "@4\nD=A\n@R13\nA=M-D\nD=M\n@LCL\nM=D\n"; // Restore caller LCL
+            result += "@R14\nA=M\n0;JMP\n";
+        }
         else if(cmdType == VMCommandType::C_CALL)
         {
             if(splitCode.size() < 3)
-                return {"C_CALL: Insufficient instructions", ""};
+                return { "C_CALL: Insufficient instructions", "" };
 
-            const auto label = m_fileName + '.' + splitCode[2];
+            const std::string id = "." + std::to_string(incID());
+            // Push Return Address
+            result += "@RETURN" + id + "\n" + "D=A\n@SP\nA=M\nM=D\n@SP\nM=M+1\n";
+            // save Caller state by pushing to stack
+            result += "@LCL\nD=M\n@SP\nA=M\nM=D\n@SP\nM=M+1\n";
+            result += "@ARG\nD=M\n@SP\nA=M\nM=D\n@SP\nM=M+1\n";
+            result += "@THIS\nD=M\n@SP\nA=M\nM=D\n@SP\nM=M+1\n";
+            result += "@THAT\nD=M\n@SP\nA=M\nM=D\n@SP\nM=M+1\n";
+            // set ARG to SP - 5 - numArgs
+            result += "@5\nD=A\n@" + splitCode[2] + "\nD=D+A\n@SP\nD=M-D\n@ARG\nM=D\n";
+            // set LCL to previous caller SP
+            //result += "@5\nD=A\n@SP\nD=M-D\n@LCL\nM=D\n";
+            result += "@SP\nD=M\n@LCL\nM=D\n";
+            // go to function
+            result += "@" + splitCode[1] + "\n0;JMP\n";
+            // return address
+            result += "(RETURN" + id + ")\n";
         }
 
-        incCodeCount();
         return {"", result};
     }
 
@@ -284,9 +332,11 @@ namespace VMTranslator
             }
             else
             {
+                outf.close();
                 std::cerr << "Unable to open output file for writing\n";
                 return 1;
             }
+            outf.close();
         }
         else
         {

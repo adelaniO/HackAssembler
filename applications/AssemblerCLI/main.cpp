@@ -11,8 +11,12 @@ int main(int argc, char* argv[])
         std::cout << "Usage: <input file/directory>" << '\n';
         return 1;
     }
+    
+    std::string pathName{argv[1]};
+    if(pathName.back() == '\\' || pathName.back() == '/')
+        pathName = pathName.substr(0, pathName.size()-1);
 
-    fs::path input{ argv[1] };
+    fs::path input{ pathName };
     if (input.extension() == ".asm")
     {
         Assembler::Assembler assembler;
@@ -29,8 +33,9 @@ int main(int argc, char* argv[])
 
     if(DIR* dir = opendir(argv[1]))
     {
-        const std::string dirName{argv[1]};
-        fs::path output(dirName + '/' + input.filename() + ".asm");
+        const auto penultSlash = pathName.find_last_of("\\/", pathName.size() - 2);
+        const auto outputFileName = pathName.substr(penultSlash != std::string::npos ? penultSlash + 1 : 0);
+        fs::path output(pathName + '/' + outputFileName + ".asm");
         VMTranslator::Translator translator(output);
         std::vector<fs::path> inputs;
         auto dirEnt = readdir(dir);
@@ -38,11 +43,10 @@ int main(int argc, char* argv[])
         {
             if(dirEnt->d_type == DT_REG || dirEnt->d_type == DT_LNK)
             {
-                fs::path curFile(dirName + "/" + dirEnt->d_name);
+                fs::path curFile(pathName + "/" + dirEnt->d_name);
                 if (curFile.extension() == ".vm")
                 {
                     inputs.push_back(curFile);
-                    std::cout << '\n' << curFile.filename();
                 }
             }
             dirEnt = readdir(dir);
