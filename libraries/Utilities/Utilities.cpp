@@ -13,7 +13,8 @@ namespace Utilities
     }
     std::string trimComment(const std::string& line)
     {
-        return line.substr(0, line.find("//")); // Ignore everything after a comment
+        auto timmedBlockComment = line.substr(0, line.find("/**"));
+        return timmedBlockComment.substr(0, timmedBlockComment.find("//")); // Ignore everything after a comment
     }
 
     std::vector<std::string> splitBySpace(const std::string& line)
