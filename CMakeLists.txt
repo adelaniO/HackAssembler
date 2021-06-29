@@ -48,4 +48,4 @@ add_executable(
   tests/unittests/TestAssembler.cpp
 )
 target_link_libraries(UnitTester PRIVATE gtest AssemblerLib CompilerLib)
-target_include_directories(UnitTester PUBLIC . dependencies libraries/Utilities)
+target_include_directories(UnitTester PUBLIC dependencies libraries/Utilities)
