@@ -8,6 +8,7 @@ namespace Utilities
     std::string trimSpaceAndComment(const std::string& line);
     std::string trimComment(const std::string& line);
     std::vector<std::string> splitBySpace(const std::string& line);
+    std::vector<std::string> splitBySpaceKeepQuoted(const std::string& line, bool includeQuotes = false);
 }
 
 namespace fs

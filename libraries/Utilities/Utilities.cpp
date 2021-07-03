@@ -1,4 +1,5 @@
 #include "Utilities.h"
+#include <iomanip>
 
 namespace Utilities
 {
@@ -26,6 +27,43 @@ namespace Utilities
         {
             result.push_back(tmpStr);
         }
+        return result;
+    }
+
+    std::vector<std::string> splitBySpaceKeepQuoted(const std::string& line, bool includeQuotes)
+    {
+        std::vector<std::string> result;
+        std::istringstream ss(line);
+        char tmpChar{};
+        std::string tmpStr{};
+        const auto addWord = [&]()
+        {
+            result.push_back(tmpStr);
+            tmpStr.clear();
+        };
+        bool betweenQuotes{};
+        ss >> std::noskipws;
+        while (ss >> tmpChar)
+        {
+            if(tmpChar == '\"')
+            {
+                if(includeQuotes && betweenQuotes) tmpStr+=tmpChar;
+                if(betweenQuotes || !tmpStr.empty())
+                    addWord();
+                if(includeQuotes && !betweenQuotes) tmpStr+=tmpChar;
+                betweenQuotes = !betweenQuotes;
+            }
+            else if(std::isblank(tmpChar) && !betweenQuotes && !tmpStr.empty())
+            {
+                addWord();
+            }
+            else
+            {
+               tmpStr+=tmpChar;
+            }
+        }
+        if(!betweenQuotes && !tmpStr.empty())
+                addWord();
         return result;
     }
 }
