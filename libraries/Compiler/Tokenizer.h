@@ -8,7 +8,7 @@
 
 namespace Compiler
 {
-    enum class TokenType { KEYWORD, SYMBOL, INT, STRING, IDENTIFIER};
+    enum class TokenType { KEYWORD, SYMBOL, INT, STRING, IDENTIFIER, INVALID};
     const std::unordered_set<std::string> Keywords{ "class","constructor","function","method","field","static","var","int","char","boolean","void","true","false","null","this","let","do","if","else","while","return" };
     const std::unordered_set<char>Symbols{ '{','}','(',')','[',']','.',',',';','+','-','*','/','&','|','<','>','=','-' };
     const size_t maxInt = 32767;
@@ -34,7 +34,8 @@ namespace Compiler
         bool hasMoreTokens() const { return m_tokenIndex < m_data.size(); }
         void advance() { ++m_tokenIndex; }
         const std::pair<std::string, TokenType>& getToken(int index) const { return m_data[index]; } 
-        const std::pair<std::string, TokenType>& getCurrentToken() const { return m_data[m_tokenIndex]; } 
+        const std::pair<std::string, TokenType>& getCurrentToken() const { return m_data[m_tokenIndex]; }
+        const std::pair<std::string, TokenType> peekToken(int offset) const;
         const std::string& currentString() const { return m_data[m_tokenIndex].first; } 
         const TokenType currentType() const { return m_data[m_tokenIndex].second; } 
 

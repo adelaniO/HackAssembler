@@ -28,16 +28,21 @@ namespace Compiler
     {
         const auto codeLine = Utilities::trimComment(line);
         if(codeLine.empty()) return true;
-        const auto splitCodeLine = Utilities::splitBySpace(codeLine);
+        const auto splitCodeLine = Utilities::splitBySpaceKeepQuoted(codeLine, true);
         for(const auto& word : splitCodeLine)
         {
             std::istringstream strStream{ word };
+            if (word[0] == '\"') // This is a string. Just set it as the current token and parse
+            {
+                m_currentToken = word;
+                parseToken();
+                continue;
+            }
             while (strStream >> m_currentChar)
             {
                 if(isSymbol(m_currentChar))
                 {
                     parseToken(); // parse existing tokens when a new symbol is hit
-                    m_currentToken.clear();
                     addToken({m_currentChar}, TokenType::SYMBOL);
                 }
                 else
@@ -46,7 +51,6 @@ namespace Compiler
                 }
             }
             parseToken();
-            m_currentToken.clear();
         }
         return true;
     }
@@ -72,6 +76,7 @@ namespace Compiler
             {
                 addToken(m_currentToken, TokenType::IDENTIFIER);
             }
+            m_currentToken.clear();
         }
     }
 
@@ -128,6 +133,13 @@ namespace Compiler
     {
         const auto search = Symbols.find(symbol);
         return search != Symbols.cend();
+    }
+
+    const std::pair<std::string, TokenType> Tokenizer::peekToken(int offset) const
+    {
+        if(m_tokenIndex + offset < m_data.size())
+            return m_data[m_tokenIndex + offset];
+        return {"", TokenType::INVALID};
     }
 
     bool operator==(const Tokenizer& lhs, const Tokenizer& rhs)
