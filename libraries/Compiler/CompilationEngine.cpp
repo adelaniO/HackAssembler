@@ -8,22 +8,25 @@ namespace Compiler
 
     void CompilationEngine::startCompilation()
     {
-        XMLWriter writer{"class", m_level, &m_data};
+        //XMLWriter writer{"class", m_level, &m_data};
         consume("class");
         consumeIdentifier();
         consume("{");
-        compileClassVarDecs();
-        compileStatements();
+        const auto& token{ m_tokens->currentString() };
+        if(token == "static" || token == "field")
+            compileClassVarDecs();
+        if(isStatementStart())
+            compileStatements();
+        if(m_tokens->currentString() != "}" && m_tokens->hasMoreTokens())
+            compileSubroutineDecs();
         consume("}");
     }
 
     void CompilationEngine::compileClassVarDecs()
     {
-        if(m_tokens->currentString() != "static" && m_tokens->currentString() != "field")
-            return;
-        XMLWriter writer{"classVarDec", m_level, &m_data};
         while(m_tokens->hasMoreTokens() && (m_tokens->currentString() == "static" || m_tokens->currentString() == "field"))
         {
+            XMLWriter writer{ "classVarDec", m_level, &m_data };
             consume();
             consume({ "int", "char", "boolean" }, true); // type
             consumeIdentifier(); // first varName
@@ -36,8 +39,71 @@ namespace Compiler
         }
     }
 
+    void CompilationEngine::compileSubroutineDecs()
+    {
+        while (m_tokens->hasMoreTokens() && (m_tokens->currentString() == "constructor"
+            || m_tokens->currentString() == "function"
+            || m_tokens->currentString() == "method"
+            || m_tokens->currentString() == "void"
+            || isType()
+            ))
+        {
+            XMLWriter writer{ "subroutineDec", m_level, &m_data };
+            consume();
+            isType() ? consume() : consume("void");
+            consumeIdentifier(); // Subroutine name
+            consume("(");
+            compileParameterList();
+            consume(")");
+            compileSubroutineBody();
+        }
+    }
+
+    void CompilationEngine::compileSubroutineBody()
+    {
+        XMLWriter writer{"subroutineBody", m_level, &m_data};
+        consume("{");
+        while(m_tokens->currentString() == "var")
+        {
+            compileVarDec();
+        }
+        if(m_tokens->currentString() != "}")
+            compileStatements();
+        consume("}");
+    }
+
+    void CompilationEngine::compileVarDec()
+    {
+        XMLWriter writer{"varDec", m_level, &m_data};
+        consume("var");
+        bool firstVar{true};
+        while (m_tokens->currentString() != ";")
+        {
+            if(firstVar)
+                consumeType();
+            consumeIdentifier();
+            if(m_tokens->currentString() == ",")
+                consume();
+            firstVar = false;
+        }
+        consume(";");
+    }
+
+    void CompilationEngine::compileParameterList()
+    {
+        XMLWriter writer{"parameterList", m_level, &m_data};
+        while (m_tokens->currentString() != ")")
+        {
+            consumeType();
+            consumeIdentifier();
+            if(m_tokens->currentString() == ",")
+                consume();
+        }
+    }
+
     void CompilationEngine::compileStatements()
     {
+        XMLWriter writer{"statements", m_level, &m_data};
         while (m_tokens->currentString() != "}")
         {
             const auto tokenString = m_tokens->currentString();
@@ -51,11 +117,8 @@ namespace Compiler
                 compileDoStatement();
             else if (tokenString == "return")
                 compileReturnStatement();
+            else break;
         }
-    }
-
-    void CompilationEngine::compileIfStatement()
-    {
     }
 
     void CompilationEngine::compileLetStatement()
@@ -71,12 +134,33 @@ namespace Compiler
         }
         consume("=");
         compileExpression();
+        consume(";");
+    }
+
+    void CompilationEngine::compileIfStatement()
+    {
+        XMLWriter writer{"ifStatement", m_level, &m_data};
+        consume("if");
+        consume("(");
+        compileExpression();
+        consume(")");
+        consume("{");
+        //if(m_tokens->currentString() != "}")
+            compileStatements();
+        consume("}");
+        if(m_tokens->hasMoreTokens() && m_tokens->currentString() == "else")
+        {
+            consume("else");
+            consume("{");
+            compileStatements();
+            consume("}");
+        }
     }
 
     void CompilationEngine::compileWhileStatement()
     {
+        XMLWriter writer{"whileStatement", m_level, &m_data};
         consume("while");
-        XMLWriter writer{"while", m_level, &m_data};
         consume("(");
         compileExpression();
         consume(")");
@@ -87,10 +171,19 @@ namespace Compiler
 
     void CompilationEngine::compileDoStatement()
     {
+        XMLWriter writer{"doStatement", m_level, &m_data};
+        consume("do");
+        compileSubroutineCall();
+        consume(";");
     }
 
     void CompilationEngine::compileReturnStatement()
     {
+        XMLWriter writer{"returnStatement", m_level, &m_data};
+        consume("return");
+        if(m_tokens->currentString() != ";")
+            compileExpression();
+        consume(";");
     }
 
     void CompilationEngine::compileExpression()
@@ -104,15 +197,106 @@ namespace Compiler
         }
     }
 
+    void CompilationEngine::compileExpressionList()
+    {
+        XMLWriter writer{"expressionList", m_level, &m_data};
+        while(m_tokens->currentString() != ")")
+        {
+            compileExpression();
+            if(m_tokens->currentString() == ",")
+                consume();
+        }
+    }
+
+    void CompilationEngine::compileSubroutineCall()
+    {
+        consumeIdentifier();
+        if(m_tokens->currentString() == ".") // class subroutine call
+        {
+            consume(".");
+            consumeIdentifier();
+        }
+        consume("(");
+        compileExpressionList();
+        consume(")");
+    }
+
     void CompilationEngine::compileTerm()
     {
         XMLWriter writer{"term", m_level, &m_data};
+        const auto [token, type] = m_tokens->getCurrentToken(); 
+        if(type == TokenType::INT || type == TokenType::STRING || isKeywordConstant(token))
+        {
+            consume();
+        }
+        else if(token == "-" || token == "~") // UnaryOp
+        {
+            consume();
+            compileTerm();
+        }
+        else if(token == "(") // bracketed term
+        {
+            consume("(");
+            compileExpression();
+            consume(")");
+        }
+        else if(type == TokenType::IDENTIFIER)
+        {
+            const auto [nextToken, nextType] = m_tokens->peekToken(1);
+            if (nextToken == "[") // array
+            {
+                consumeIdentifier(); // array name
+                consume("[");
+                compileExpression();
+                consume("]");
+            }
+            else if (nextToken == "(" || nextToken == ".") // subroutine call
+            {
+                compileSubroutineCall();
+            }
+            else // varName
+            {
+                consumeIdentifier();
+            }
+        }
+    }
+
+    void CompilationEngine::print(std::ostream& stream) const
+    {
+        stream << "<class>\n";
+        for (const auto& line : m_data)
+        {
+            stream << line << "\n";
+        }
+        stream << "</class>\n";
+    }
+
+    bool CompilationEngine::isKeywordConstant(const std::string_view word)
+    {
+        return KeywordConstants.find(word.data()) != KeywordConstants.cend();
     }
 
     bool CompilationEngine::isOperator(const std::string_view symbol)
     {
-        const auto search = Operators.find(symbol.data());
-        return search != Operators.cend();
+        return Operators.find(symbol.data()) != Operators.cend();
+    }
+
+    bool CompilationEngine::isStatementStart()
+    {
+        const auto tokenString = m_tokens->currentString();
+        return tokenString == "let"
+            || tokenString == "if"
+            || tokenString == "while"
+            || tokenString == "do"
+            || tokenString == "return";
+    }
+
+    bool CompilationEngine::isType()
+    {
+        return m_tokens->currentString() == "int"
+            || m_tokens->currentString() == "char"
+            || m_tokens->currentString() == "boolean"
+            || m_tokens->currentType() == TokenType::IDENTIFIER;
     }
 
     void CompilationEngine::consume()
@@ -155,5 +339,14 @@ namespace Compiler
             consume();
         else
             throw std::invalid_argument{"Compiler expected and identifier but saw \"" + tokenTypeToString(type) + "\" type: \"" + token + "\""};
+    }
+
+    void CompilationEngine::consumeType()
+    {
+        const auto& [token, type] = m_tokens->getCurrentToken();
+        if(isType())
+            consume();
+        else
+            throw std::invalid_argument{"Compiler expected a type but saw \"" + tokenTypeToString(type) + "\" type: \"" + token + "\""};
     }
 }

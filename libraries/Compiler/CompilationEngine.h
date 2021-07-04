@@ -17,16 +17,17 @@ namespace Compiler
         XMLWriter(const std::string& name, int &level, std::vector<std::string>* data) : m_name{ name }, m_level{level}, m_data{ data }
         {
             ++m_level;
-            m_data->emplace_back("<"+m_name+">");
+            m_data->emplace_back(std::string(m_level*2, ' ') + "<"+m_name+">");
         }
-        void write(const std::string& tag, const std::string& value)
+        void write(const std::string& tag, std::string value)
         {
-            m_data->emplace_back("<"+tag+"> " + value + " </"+tag+">");
+            Utilities::xmlSanitise(value);
+            m_data->emplace_back(std::string(m_level*2, ' ') + "<"+tag+"> " + value + " </"+tag+">");
         }
         ~XMLWriter()
         {
+            if(!m_name.empty()) m_data->emplace_back(std::string(m_level*2, ' ') + "</"+m_name+">");
             --m_level;
-            if(!m_name.empty()) m_data->emplace_back("</"+m_name+">");
         };
     };
     class CompilationEngine
@@ -37,6 +38,10 @@ namespace Compiler
         CompilationEngine& operator= (const CompilationEngine&) = delete;
         void startCompilation();
         void compileClassVarDecs();
+        void compileVarDec();
+        void compileParameterList();
+        void compileSubroutineDecs();
+        void compileSubroutineBody();
         void compileStatements();
         void compileIfStatement();
         void compileLetStatement();
@@ -44,15 +49,23 @@ namespace Compiler
         void compileDoStatement();
         void compileReturnStatement();
         void compileExpression();
+        void compileExpressionList();
+        void compileSubroutineCall();
         void compileTerm();
         const std::vector<std::string>& getData() const { return m_data;}
         const std::string& getDataAt(size_t index) const { return m_data[index];}
+        void clearData() { m_data.clear(); m_level = 0; }
+        void print(std::ostream& stream) const;
     private:
         bool isOperator(const std::string_view symbol);
+        bool isKeywordConstant(const std::string_view word);
+        bool isType();
+        bool isStatementStart();
         void consume();
         void consume(const std::string_view word);
         void consume(std::vector<std::string_view> words, bool includeIdentifiers);
         void consumeIdentifier();
+        void consumeType();
         Tokenizer* m_tokens;
         std::vector<std::string> m_data;
         int m_level{};
