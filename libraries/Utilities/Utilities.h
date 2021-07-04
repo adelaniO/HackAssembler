@@ -9,6 +9,7 @@ namespace Utilities
     std::string trimComment(const std::string& line);
     std::vector<std::string> splitBySpace(const std::string& line);
     std::vector<std::string> splitBySpaceKeepQuoted(const std::string& line, bool includeQuotes = false);
+    void xmlSanitise(std::string& data);
 }
 
 namespace fs
