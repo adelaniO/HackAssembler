@@ -35,6 +35,7 @@ target_link_libraries(CompilerCLI PRIVATE CompilerLib UtilitiesLib)
 target_include_directories(CompilerCLI PUBLIC dependencies/dirent/include)
 
 # ======== Googletest ========
+enable_testing()
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 add_subdirectory(dependencies/googletest)
 
@@ -47,5 +48,5 @@ add_executable(
   tests/unittests/TestVMTranslator.cpp
   tests/unittests/TestAssembler.cpp
 )
-target_link_libraries(UnitTester PRIVATE gtest AssemblerLib CompilerLib)
+target_link_libraries(UnitTester PRIVATE gtest gmock AssemblerLib CompilerLib)
 target_include_directories(UnitTester PUBLIC dependencies libraries/Utilities)
