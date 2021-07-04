@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "CompilationEngine.h"
 
 namespace Compiler
@@ -28,7 +29,7 @@ namespace Compiler
         {
             XMLWriter writer{ "classVarDec", m_level, &m_data };
             consume();
-            consume({ "int", "char", "boolean" }, true); // type
+            consume(IntegralTypes, true); // type
             consumeIdentifier(); // first varName
             while(m_tokens->currentString() == ",")
             {
@@ -271,12 +272,12 @@ namespace Compiler
         stream << "</class>\n";
     }
 
-    bool CompilationEngine::isKeywordConstant(const std::string_view word)
+    bool CompilationEngine::isKeywordConstant(const std::string& word)
     {
         return KeywordConstants.find(word.data()) != KeywordConstants.cend();
     }
 
-    bool CompilationEngine::isOperator(const std::string_view symbol)
+    bool CompilationEngine::isOperator(const std::string& symbol)
     {
         return Operators.find(symbol.data()) != Operators.cend();
     }
@@ -293,10 +294,9 @@ namespace Compiler
 
     bool CompilationEngine::isType()
     {
-        return m_tokens->currentString() == "int"
-            || m_tokens->currentString() == "char"
-            || m_tokens->currentString() == "boolean"
-            || m_tokens->currentType() == TokenType::IDENTIFIER;
+        const auto& [token, type] = m_tokens->getCurrentToken();
+        bool isIntegralType = std::find(IntegralTypes.begin(), IntegralTypes.end(), token) != IntegralTypes.end();
+        return isIntegralType || type == TokenType::IDENTIFIER;
     }
 
     void CompilationEngine::consume()
@@ -308,7 +308,7 @@ namespace Compiler
         m_tokens->advance();
     }
 
-    void CompilationEngine::consume(const std::string_view word)
+    void CompilationEngine::consume(const std::string& word)
     {
         const auto& [token, type] = m_tokens->getCurrentToken();
         if(word == token)
@@ -317,7 +317,7 @@ namespace Compiler
             throw std::invalid_argument{"Compiler expected \"" + std::string{word} + "\" but saw \"" + token + "\""};
     }
 
-    void CompilationEngine::consume(std::vector<std::string_view> words, bool includeIdentifiers)
+    void CompilationEngine::consume(const std::vector<std::string>& words, bool includeIdentifiers)
     {
         const auto& [token, type] = m_tokens->getCurrentToken();
         const bool found = std::find(words.begin(), words.end(), token) != words.end();

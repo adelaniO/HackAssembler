@@ -127,7 +127,7 @@ namespace Compiler
     bool Tokenizer::isInt(const std::string& word) const
     {
         if(word.empty()) return false;
-        return std::all_of(word.begin(), word.end(), std::isdigit);
+        return std::all_of(word.begin(), word.end(), [](const char c){ return std::isdigit(c);});
     }
 
     bool Tokenizer::isString(const std::string& word) const

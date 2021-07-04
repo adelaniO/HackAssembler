@@ -57,13 +57,13 @@ namespace Compiler
         void clearData() { m_data.clear(); m_level = 0; }
         void print(std::ostream& stream) const;
     private:
-        bool isOperator(const std::string_view symbol);
-        bool isKeywordConstant(const std::string_view word);
+        bool isOperator(const std::string& symbol);
+        bool isKeywordConstant(const std::string& word);
         bool isType();
         bool isStatementStart();
         void consume();
-        void consume(const std::string_view word);
-        void consume(std::vector<std::string_view> words, bool includeIdentifiers);
+        void consume(const std::string& word);
+        void consume(const std::vector<std::string>& words, bool includeIdentifiers);
         void consumeIdentifier();
         void consumeType();
         Tokenizer* m_tokens;
@@ -71,5 +71,6 @@ namespace Compiler
         int m_level{};
         const std::unordered_set<std::string> Operators{ "+","-","*","/","&","|","<",">","=" };
         const std::unordered_set<std::string> KeywordConstants{ "true","false","null","this" };
+        const std::vector<std::string> IntegralTypes { "int", "char", "boolean" };
     };
 }
