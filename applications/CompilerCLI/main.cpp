@@ -1,9 +1,43 @@
 #include <iostream>
+#include <fstream>
 
 #include "dirent.h"
 #include "Utilities.h"
 #include "Tokenizer.h"
 #include "CompilationEngine.h"
+
+int compileJackFile(const fs::path& input)
+{
+    try
+    {
+        std::cout << "Compiling " << input.filename() << '\n';
+        // Tokenize
+        Compiler::Tokenizer tokenizer;
+        tokenizer.parse(input);
+        // Compile
+        Compiler::CompilationEngine compiler(&tokenizer);
+        compiler.startCompilation();
+        // Write Tokens XML
+        std::string tokensFileName = input.directory() + '/' + input.filename() + "T.xml";
+        fs::path outputXml{tokensFileName};
+        std::ofstream tokenstFile(outputXml.fullFileName());
+        tokenizer.printTokens(tokenstFile);
+        tokenstFile.close();
+
+        // Write Compiler XML
+        outputXml = input;
+        outputXml.replace_extension("xml");
+        std::ofstream compilerFile(outputXml.fullFileName());
+        compiler.print(compilerFile);
+        compilerFile.close();
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what();
+        return 1;
+    }
+    return 0;
+}
 
 int main(int argc, char* argv[])
 {
@@ -20,14 +54,31 @@ int main(int argc, char* argv[])
     fs::path input{ pathName };
     if (input.extension() == ".jack")
     {
-        Compiler::Tokenizer tokenizer;
-        tokenizer.parse(input);
-        Compiler::CompilationEngine compiler{&tokenizer};
-        return 0;
+        return compileJackFile(input);
+    }
+    else if(DIR* dir = opendir(argv[1]))
+    {
+        auto dirEnt = readdir(dir);
+        int result = 0;
+        while(dirEnt)
+        {
+            if(dirEnt->d_type == DT_REG || dirEnt->d_type == DT_LNK)
+            {
+                fs::path curFile(pathName + "/" + dirEnt->d_name);
+                if (curFile.extension() == ".jack")
+                {
+                    int compilerResult = compileJackFile(curFile);
+                    result = compilerResult > result ? compilerResult : result;
+                }
+            }
+            dirEnt = readdir(dir);
+        }
+        closedir(dir);
+        return result;
     }
     else
     {
-        std::cout << "Invalid InputFile Extension\n";
+        std::cerr << "Invalid InputFile Extension\n";
         return 1;
     }
 }
