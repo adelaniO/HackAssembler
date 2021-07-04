@@ -12,15 +12,19 @@ namespace Compiler
             std::cerr << "Unable to open Input File\n";
             return false;
         }
-        std::cout << "Tokenizing " << input.fullFileName() << '\n';
+        bool inBlockComments{};
         std::string lineString;
         while(!inputStream.eof())
         {
             std::getline(inputStream, lineString);
-            const auto parsed = parseLine(lineString);
+            if(lineString.find("/**") != std::string::npos)
+                inBlockComments = true;
+            if(!inBlockComments)
+                const auto parsed = parseLine(lineString);
+            if(inBlockComments && lineString.find("*/") != std::string::npos)
+                inBlockComments = false;
         }
         inputStream.close();
-        printTokens(std::cout);
         return true;
     }
 
@@ -87,11 +91,14 @@ namespace Compiler
 
     void Tokenizer::printTokens(std::ostream& stream) const
     {
-        for(const auto& [token , type] : m_data)
+        stream << "<tokens>\n";
+        for(auto [token , type] : m_data)
         {
             std::string typeStr = tokenTypeToString(type);
+            Utilities::xmlSanitise(token);
             stream << "<" << typeStr<< "> " << token << " </" << typeStr << ">\n";
         }
+        stream << "</tokens>\n";
     }
 
     std::string tokenTypeToString(const Compiler::TokenType& type)
