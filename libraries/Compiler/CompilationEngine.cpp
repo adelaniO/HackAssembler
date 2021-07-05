@@ -1,5 +1,6 @@
 #include <algorithm>
 #include "CompilationEngine.h"
+#include "SymbolTable.h"
 
 namespace Compiler
 {
@@ -9,8 +10,9 @@ namespace Compiler
 
     void CompilationEngine::startCompilation()
     {
-        //XMLWriter writer{"class", m_level, &m_data};
+        m_symbolTable.clear();
         consume("class");
+        m_symbolTable.setClassName(m_tokens->currentString());
         consumeIdentifier();
         consume("{");
         const auto& token{ m_tokens->currentString() };
@@ -25,15 +27,24 @@ namespace Compiler
 
     void CompilationEngine::compileClassVarDecs()
     {
+        std::string name, type;
+        SymbolKind kind;
+        int index;
         while(m_tokens->hasMoreTokens() && (m_tokens->currentString() == "static" || m_tokens->currentString() == "field"))
         {
             XMLWriter writer{ "classVarDec", m_level, &m_data };
+            kind = m_tokens->currentString() == "static" ? SymbolKind::STATIC : SymbolKind::FIELD;
             consume();
+            type = m_tokens->currentString();
             consume(IntegralTypes, true); // type
+            name = m_tokens->currentString();
             consumeIdentifier(); // first varName
+            m_symbolTable.define(name, type, kind);
             while(m_tokens->currentString() == ",")
             {
                 consume();
+                name = m_tokens->currentString();
+                m_symbolTable.define(name, type, kind);
                 consumeIdentifier(); // comma seperated varNames
             }
             consume(";");
@@ -45,14 +56,16 @@ namespace Compiler
         while (m_tokens->hasMoreTokens() && (m_tokens->currentString() == "constructor"
             || m_tokens->currentString() == "function"
             || m_tokens->currentString() == "method"
-            || m_tokens->currentString() == "void"
-            || isType()
+            //|| m_tokens->currentString() == "void"
+            //|| isType()
             ))
         {
+            const bool isMethod = m_tokens->currentString() == "method";
             XMLWriter writer{ "subroutineDec", m_level, &m_data };
             consume();
             isType() ? consume() : consume("void");
             consumeIdentifier(); // Subroutine name
+            m_symbolTable.startSubroutine(isMethod);
             consume("(");
             compileParameterList();
             consume(")");
@@ -76,16 +89,23 @@ namespace Compiler
     void CompilationEngine::compileVarDec()
     {
         XMLWriter writer{"varDec", m_level, &m_data};
+        std::string name, type;
+        int index;
         consume("var");
         bool firstVar{true};
         while (m_tokens->currentString() != ";")
         {
             if(firstVar)
+            {
+                type = m_tokens->currentString();
                 consumeType();
+            }
+            name = m_tokens->currentString();
             consumeIdentifier();
             if(m_tokens->currentString() == ",")
                 consume();
             firstVar = false;
+            m_symbolTable.define(name, type, SymbolKind::VAR);
         }
         consume(";");
     }
@@ -93,12 +113,17 @@ namespace Compiler
     void CompilationEngine::compileParameterList()
     {
         XMLWriter writer{"parameterList", m_level, &m_data};
+        std::string name, type;
+        int index;
         while (m_tokens->currentString() != ")")
         {
+            type = m_tokens->currentString();
             consumeType();
+            name = m_tokens->currentString();
             consumeIdentifier();
             if(m_tokens->currentString() == ",")
                 consume();
+            m_symbolTable.define(name, type, SymbolKind::ARG);
         }
     }
 
@@ -272,17 +297,17 @@ namespace Compiler
         stream << "</class>\n";
     }
 
-    bool CompilationEngine::isKeywordConstant(const std::string& word)
+    bool CompilationEngine::isKeywordConstant(const std::string& word) const
     {
         return KeywordConstants.find(word.data()) != KeywordConstants.cend();
     }
 
-    bool CompilationEngine::isOperator(const std::string& symbol)
+    bool CompilationEngine::isOperator(const std::string& symbol) const
     {
         return Operators.find(symbol.data()) != Operators.cend();
     }
 
-    bool CompilationEngine::isStatementStart()
+    bool CompilationEngine::isStatementStart() const
     {
         const auto tokenString = m_tokens->currentString();
         return tokenString == "let"
@@ -292,7 +317,7 @@ namespace Compiler
             || tokenString == "return";
     }
 
-    bool CompilationEngine::isType()
+    bool CompilationEngine::isType() const
     {
         const auto& [token, type] = m_tokens->getCurrentToken();
         bool isIntegralType = std::find(IntegralTypes.begin(), IntegralTypes.end(), token) != IntegralTypes.end();
