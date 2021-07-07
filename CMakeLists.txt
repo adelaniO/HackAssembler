@@ -47,6 +47,6 @@ add_executable(
   tests/unitTests/TestCompiler.cpp
   tests/unittests/TestVMTranslator.cpp
   tests/unittests/TestAssembler.cpp
-)
+ "tests/unittests/TestCompilerXML.cpp")
 target_link_libraries(UnitTester PRIVATE gtest gmock AssemblerLib CompilerLib)
 target_include_directories(UnitTester PUBLIC dependencies libraries/Utilities)
