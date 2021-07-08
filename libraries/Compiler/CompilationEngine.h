@@ -1,7 +1,7 @@
 #pragma once
-
 #include "Tokenizer.h"
 #include "SymbolTable.h"
+#include "VMWriter.h"
 
 namespace Compiler
 {
@@ -34,26 +34,10 @@ namespace Compiler
         };
     };
 
-    enum class Segment { CONSTANT, ARG, LOCAL, STATIC, THIS, THAT, POINTER, TEMP };
-    enum class Command { ADD, SUB, NEG, GT, LT, AND, OR, NOT };
-    class VMWriter
-    {
-    public:
-        void writePush(Segment segment, int index);
-        void writePop(Segment segment, int index);
-        void writeArithmetic(Command command);
-        void writeLabel(const std::string& label);
-        void writeGoto(const std::string& label);
-        void writeIf(const std::string& label);
-        void writeCall(const std::string& name, int nArgs);
-        void writeFunction(const std::string& name, int nLocals);
-        void writeReturn();
-    };
-
     class CompilationEngine
     {
     public:
-        CompilationEngine(Tokenizer* tokens);
+        CompilationEngine(Tokenizer* tokens, VMWriter* writer = nullptr);
         CompilationEngine(const CompilationEngine&) = delete;
         CompilationEngine& operator= (const CompilationEngine&) = delete;
         void startCompilation();
@@ -69,15 +53,22 @@ namespace Compiler
         void compileDoStatement();
         void compileReturnStatement();
         void compileExpression();
-        void compileExpressionList();
+        void compileExpressionList(int &nArgs);
         void compileSubroutineCall();
         void compileTerm();
         const std::vector<std::string>& getData() const { return m_data;}
         const std::string& getDataAt(size_t index) const { return m_data[index];}
-        void clearData() { m_data.clear(); m_level = 0; }
         const SymbolTable& getSymbolTable() const { return m_symbolTable; }
         void print(std::ostream& stream) const;
         void clearSymbolTable() { m_symbolTable.clear(); }
+        const std::string& className() const { return m_className; }
+        std::string generateLabelName(const std::string& type, const std::string& id) const { return m_className + '_' + type + id; }
+        void clearData()
+        {
+            m_data.clear();
+            m_level = 0;
+            if(m_writer) m_writer->clear();
+        }
     private:
         bool isOperator(const std::string& symbol) const;
         bool isKeywordConstant(const std::string& word) const;
@@ -90,7 +81,11 @@ namespace Compiler
         void consumeIdentifier();
         void consumeType();
 
+        std::string m_className;
+        std::pair<Segment, int> symbolInfo(const std::string& identifier) const;
+
         Tokenizer* m_tokens;
+        VMWriter* m_writer;
         SymbolTable m_symbolTable{};
         std::vector<std::string> m_data;
         int m_level{};

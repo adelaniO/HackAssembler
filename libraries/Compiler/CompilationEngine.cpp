@@ -4,7 +4,7 @@
 
 namespace Compiler
 {
-    CompilationEngine::CompilationEngine(Tokenizer* tokens) : m_tokens{tokens}
+    CompilationEngine::CompilationEngine(Tokenizer* tokens, VMWriter* writer) : m_tokens{ tokens }, m_writer{ writer }
     {
     }
 
@@ -12,7 +12,8 @@ namespace Compiler
     {
         m_symbolTable.clear();
         consume("class");
-        m_symbolTable.setClassName(m_tokens->currentString());
+        m_className = m_tokens->currentString();
+        m_symbolTable.setClassName(m_className);
         consumeIdentifier();
         consume("{");
         const auto& token{ m_tokens->currentString() };
@@ -32,7 +33,7 @@ namespace Compiler
         int index;
         while(m_tokens->hasMoreTokens() && (m_tokens->currentString() == "static" || m_tokens->currentString() == "field"))
         {
-            XMLWriter writer{ "classVarDec", m_level, &m_data };
+            XMLWriter xmlWriter{ "classVarDec", m_level, &m_data };
             kind = m_tokens->currentString() == "static" ? SymbolKind::STATIC : SymbolKind::FIELD;
             consume();
             type = m_tokens->currentString();
@@ -60,12 +61,14 @@ namespace Compiler
             //|| isType()
             ))
         {
-            const bool isMethod = m_tokens->currentString() == "method";
-            XMLWriter writer{ "subroutineDec", m_level, &m_data };
+            SubroutineType type = m_tokens->currentString() == "constructor" ? SubroutineType::CONSTRUCTOR : SubroutineType::FUNCTION;
+            if(m_tokens->currentString() == "method") type = SubroutineType::METHOD;
+            XMLWriter xmlWriter{ "subroutineDec", m_level, &m_data };
             consume();
             isType() ? consume() : consume("void");
+            const std::string& subroutineName = m_tokens->currentString();
             consumeIdentifier(); // Subroutine name
-            m_symbolTable.startSubroutine(isMethod);
+            m_symbolTable.startSubroutine(type, subroutineName);
             consume("(");
             compileParameterList();
             consume(")");
@@ -75,11 +78,28 @@ namespace Compiler
 
     void CompilationEngine::compileSubroutineBody()
     {
-        XMLWriter writer{"subroutineBody", m_level, &m_data};
+        XMLWriter xmlWriter{"subroutineBody", m_level, &m_data};
         consume("{");
         while(m_tokens->currentString() == "var")
         {
             compileVarDec();
+        }
+        if(m_writer)
+        {
+            const int nLocals = m_symbolTable.varCount(SymbolKind::VAR);
+            m_writer->writeFunction(m_className + '.' + m_symbolTable.currentSubroutine(), nLocals);
+            if(m_symbolTable.isMethod())
+            {
+                m_writer->writePush(Segment::ARG, 0);
+                m_writer->writePop(Segment::POINTER, 0);
+            }
+            else if(m_symbolTable.isConstructor())
+            {
+                int nBytes = m_symbolTable.varCount(SymbolKind::FIELD);
+                m_writer->writePush(Segment::CONSTANT, nBytes);
+                m_writer->writeCall("Memory.alloc", 1); // Returns base address of newly created object
+                m_writer->writePop(Segment::POINTER, 0);
+            }
         }
         if(m_tokens->currentString() != "}")
             compileStatements();
@@ -88,7 +108,7 @@ namespace Compiler
 
     void CompilationEngine::compileVarDec()
     {
-        XMLWriter writer{"varDec", m_level, &m_data};
+        XMLWriter xmlWriter{"varDec", m_level, &m_data};
         std::string name, type;
         int index;
         consume("var");
@@ -112,7 +132,7 @@ namespace Compiler
 
     void CompilationEngine::compileParameterList()
     {
-        XMLWriter writer{"parameterList", m_level, &m_data};
+        XMLWriter xmlWriter{"parameterList", m_level, &m_data};
         std::string name, type;
         int index;
         while (m_tokens->currentString() != ")")
@@ -129,7 +149,7 @@ namespace Compiler
 
     void CompilationEngine::compileStatements()
     {
-        XMLWriter writer{"statements", m_level, &m_data};
+        XMLWriter xmlWriter{"statements", m_level, &m_data};
         while (m_tokens->currentString() != "}")
         {
             const auto tokenString = m_tokens->currentString();
@@ -149,31 +169,59 @@ namespace Compiler
 
     void CompilationEngine::compileLetStatement()
     {
-        XMLWriter writer{"letStatement", m_level, &m_data};
+        XMLWriter xmlWriter{"letStatement", m_level, &m_data};
         consume("let");
+        const std::string term{ m_tokens->currentString() };
+        const auto [segment, index] = symbolInfo(term);
+
         consumeIdentifier();
-        if(m_tokens->currentString() == "[")
+        const bool isArray = m_tokens->currentString() == "[";
+        if(isArray)
         {
             consume("[");
             compileExpression();
             consume("]");
+            if(m_writer)
+            {
+                m_writer->writePush(segment, index);
+                m_writer->writeArithmetic(Command::ADD);
+            }
         }
         consume("=");
         compileExpression();
+        if (m_writer)
+        {
+            if(isArray)
+            {
+                m_writer->writePop(Segment::TEMP, 0);
+                m_writer->writePop(Segment::POINTER, 1);
+                m_writer->writePush(Segment::TEMP, 0);
+                m_writer->writePop(Segment::THAT, 0);
+            }
+            else
+                m_writer->writePop(segment, index);
+        }
         consume(";");
     }
 
     void CompilationEngine::compileIfStatement()
     {
-        XMLWriter writer{"ifStatement", m_level, &m_data};
+        const std::string labelId = m_writer ? m_writer->newLabelId() : "";
+        const std::string L1 = generateLabelName("IF_FALSE", labelId);
+        const std::string L2 = generateLabelName("IF_END", labelId);
+
+        XMLWriter xmlWriter{"ifStatement", m_level, &m_data};
         consume("if");
         consume("(");
         compileExpression();
         consume(")");
+        if(m_writer) m_writer->writeArithmetic(Command::NOT);
+        if(m_writer) m_writer->writeIf(L1);
         consume("{");
-        //if(m_tokens->currentString() != "}")
-            compileStatements();
+        compileStatements();
         consume("}");
+        if(m_writer) m_writer->writeGoto(L2);
+        if(m_writer) m_writer->writeLabel(L1);
         if(m_tokens->hasMoreTokens() && m_tokens->currentString() == "else")
         {
             consume("else");
@@ -181,54 +229,94 @@ namespace Compiler
             compileStatements();
             consume("}");
         }
+        if(m_writer) m_writer->writeLabel(L2);
     }
 
     void CompilationEngine::compileWhileStatement()
     {
-        XMLWriter writer{"whileStatement", m_level, &m_data};
+        const std::string labelId = m_writer ? m_writer->newLabelId() : "";
+        const std::string L1 = generateLabelName("WHILE_EXP", labelId);
+        const std::string L2 = generateLabelName("WHILE_END", labelId);
+        XMLWriter xmlWriter{"whileStatement", m_level, &m_data};
+        if(m_writer) m_writer->writeLabel(L1);
         consume("while");
         consume("(");
         compileExpression();
         consume(")");
+        if(m_writer) m_writer->writeArithmetic(Command::NOT);
+        if(m_writer) m_writer->writeIf(L2);
         consume("{");
         compileStatements();
         consume("}");
+        if(m_writer) m_writer->writeGoto(L1);
+        if(m_writer) m_writer->writeLabel(L2);
     }
 
     void CompilationEngine::compileDoStatement()
     {
-        XMLWriter writer{"doStatement", m_level, &m_data};
+        XMLWriter xmlWriter{"doStatement", m_level, &m_data};
         consume("do");
         compileSubroutineCall();
         consume(";");
+        if (m_writer) m_writer->writePop(Segment::TEMP, 0);
     }
 
     void CompilationEngine::compileReturnStatement()
     {
-        XMLWriter writer{"returnStatement", m_level, &m_data};
+        XMLWriter xmlWriter{"returnStatement", m_level, &m_data};
         consume("return");
-        if(m_tokens->currentString() != ";")
+        const std::string& expression = m_tokens->currentString();
+        if(expression != ";")
             compileExpression();
+        else if(m_writer)
+            m_writer->writePush(Segment::CONSTANT, 0);
         consume(";");
+        if(m_writer) m_writer->writeReturn();
     }
 
     void CompilationEngine::compileExpression()
     {
-        XMLWriter writer{"expression", m_level, &m_data};
+        XMLWriter xmlWriter{"expression", m_level, &m_data};
         compileTerm();
+
         while(isOperator(m_tokens->currentString()))
         {
+            const std::string op{ m_tokens->currentString() };
             consume();
             compileTerm();
+            if(m_writer)
+            {
+                if (op == "+")
+                    m_writer->writeArithmetic(Command::ADD);
+                else if (op == "-")
+                    m_writer->writeArithmetic(Command::SUB);
+                else if (op == "*")
+                    m_writer->writeCall("Math.multiply", 2);
+                else if (op == "/")
+                    m_writer->writeCall("Math.divide", 2);
+                else if (op == "&")
+                    m_writer->writeArithmetic(Command::AND);
+                else if (op == "|")
+                    m_writer->writeArithmetic(Command::OR);
+                else if (op == "<")
+                    m_writer->writeArithmetic(Command::LT);
+                else if (op == ">")
+                    m_writer->writeArithmetic(Command::GT);
+                else if (op == "=")
+                    m_writer->writeArithmetic(Command::EQ);
+                else if (op == "~")
+                    m_writer->writeArithmetic(Command::NOT);
+            }
         }
     }
 
-    void CompilationEngine::compileExpressionList()
+    void CompilationEngine::compileExpressionList(int &nArgs)
     {
-        XMLWriter writer{"expressionList", m_level, &m_data};
+        XMLWriter xmlWriter{"expressionList", m_level, &m_data};
         while(m_tokens->currentString() != ")")
         {
             compileExpression();
+            ++nArgs;
             if(m_tokens->currentString() == ",")
                 consume();
         }
@@ -236,29 +324,89 @@ namespace Compiler
 
     void CompilationEngine::compileSubroutineCall()
     {
+        std::string className = m_className;
+        std::string callName = m_tokens->currentString();
+        int nArgs{};
         consumeIdentifier();
         if(m_tokens->currentString() == ".") // class subroutine call
         {
             consume(".");
+            className = callName;
+            callName = m_tokens->currentString();
             consumeIdentifier();
+            const auto [segment, index] = symbolInfo(className);
+            if(index >= 0)
+            {
+                nArgs = 1;
+                className = m_symbolTable.typeOf(className);
+                m_writer->writePush(segment, index);
+            }
+        }
+        else if(m_writer)
+        {
+            nArgs = 1;
+            m_writer->writePush(Segment::POINTER, 0); // Member call from owning class
         }
         consume("(");
-        compileExpressionList();
+        compileExpressionList(nArgs);
         consume(")");
+        if(m_writer) m_writer->writeCall(className + "." + callName, nArgs);
     }
 
     void CompilationEngine::compileTerm()
     {
-        XMLWriter writer{"term", m_level, &m_data};
-        const auto [token, type] = m_tokens->getCurrentToken(); 
-        if(type == TokenType::INT || type == TokenType::STRING || isKeywordConstant(token))
+        XMLWriter xmlWriter{"term", m_level, &m_data};
+        const auto& [token, type] = m_tokens->getCurrentToken();
+        if (type == TokenType::INT)
         {
+            try
+            {
+                if (m_writer) m_writer->writePush(Segment::CONSTANT, std::atoi(token.c_str()));
+            }
+            catch (...)
+            {
+                throw std::invalid_argument{ "Unable to conver token \'" + token + "\' to Integer" };
+            }
+            consume();
+        }
+        else if(type == TokenType::STRING )
+        {
+            if (m_writer)
+            {
+                m_writer->writePush(Segment::CONSTANT, static_cast<int>(token.size()));
+                m_writer->writeCall("String.new", 1);
+                for(const auto& character : token)
+                {
+                    m_writer->writePush(Segment::CONSTANT, static_cast<int>(character));
+                    m_writer->writeCall("String.appendChar", 2);
+                }
+            }
+
+            consume();
+        }
+        else if(isKeywordConstant(token))
+        {
+            std::string val = "0";
+            if(token == "true" && m_writer)
+            {
+                m_writer->writePush(Segment::CONSTANT, 1);
+                m_writer->writeArithmetic(Command::NEG);
+            }
+            else if(token == "this" && m_writer) m_writer->writePush(Segment::POINTER, 0);
+            else if(m_writer) m_writer->writePush(Segment::CONSTANT, 0);
             consume();
         }
         else if(token == "-" || token == "~") // UnaryOp
         {
             consume();
             compileTerm();
+            if(m_writer)
+            {
+                if (token == "-")
+                    m_writer->writeArithmetic(Command::NEG);
+                else 
+                    m_writer->writeArithmetic(Command::NOT);
+            }
         }
         else if(token == "(") // bracketed term
         {
@@ -269,12 +417,20 @@ namespace Compiler
         else if(type == TokenType::IDENTIFIER)
         {
             const auto [nextToken, nextType] = m_tokens->peekToken(1);
+            const auto [segment, index] = symbolInfo(token);
             if (nextToken == "[") // array
             {
                 consumeIdentifier(); // array name
                 consume("[");
                 compileExpression();
                 consume("]");
+                if (m_writer)
+                {
+                    m_writer->writePush(segment, index);
+                    m_writer->writeArithmetic(Command::ADD);
+                    m_writer->writePop(Segment::POINTER, 1);
+                    m_writer->writePush(Segment::THAT, 0);
+                }
             }
             else if (nextToken == "(" || nextToken == ".") // subroutine call
             {
@@ -282,6 +438,7 @@ namespace Compiler
             }
             else // varName
             {
+                if(m_writer) m_writer->writePush(segment, m_symbolTable.indexOf(token));
                 consumeIdentifier();
             }
         }
@@ -328,8 +485,8 @@ namespace Compiler
     {
         const auto& [token, type] = m_tokens->getCurrentToken();
         const auto tag = tokenTypeToString(type);
-        XMLWriter writer{m_level, &m_data};
-        writer.write(tag, token);
+        XMLWriter xmlWriter{m_level, &m_data};
+        xmlWriter.write(tag, token);
         m_tokens->advance();
     }
 
@@ -373,5 +530,30 @@ namespace Compiler
             consume();
         else
             throw std::invalid_argument{"Compiler expected a type but saw \"" + tokenTypeToString(type) + "\" type: \"" + token + "\""};
+    }
+
+    std::pair<Segment, int> CompilationEngine::symbolInfo(const std::string& identifier) const
+    {
+        const int index = m_symbolTable.indexOf(identifier);
+        Segment segment = Segment::CONSTANT;
+        switch (m_symbolTable.kindOf(identifier))
+        {
+        case(SymbolKind::STATIC):
+            segment = Segment::STATIC;
+            break;
+        case(SymbolKind::FIELD):
+            segment = Segment::THIS;
+            break;
+        case(SymbolKind::ARG):
+            segment = Segment::ARG;
+            break;
+        case(SymbolKind::VAR):
+            segment = Segment::LOCAL;
+            break;
+        default:
+            return { segment, -1 };
+            break;
+        }
+        return {segment, index};
     }
 }

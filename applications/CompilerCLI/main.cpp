@@ -6,7 +6,7 @@
 #include "Tokenizer.h"
 #include "CompilationEngine.h"
 
-int compileJackFile(const fs::path& input)
+int compileJackFile(const fs::path& input, bool outputXML)
 {
     try
     {
@@ -15,21 +15,28 @@ int compileJackFile(const fs::path& input)
         Compiler::Tokenizer tokenizer;
         tokenizer.parse(input);
         // Compile
-        Compiler::CompilationEngine compiler(&tokenizer);
+        fs::path outputVM = input;
+        outputVM.replace_extension("vm");
+        std::ofstream vmFile(outputVM.fullFileName());
+        Compiler::VMWriter vmWriter{&vmFile};
+        Compiler::CompilationEngine compiler(&tokenizer, &vmWriter);
         compiler.startCompilation();
-        // Write Tokens XML
-        std::string tokensFileName = input.directory() + '/' + input.filename() + "T.xml";
-        fs::path outputXml{tokensFileName};
-        std::ofstream tokenstFile(outputXml.fullFileName());
-        tokenizer.printTokens(tokenstFile);
-        tokenstFile.close();
+        if(outputXML)
+        {
+            // Write Tokens XML
+            std::string tokensFileName = input.directory() + '/' + input.filename() + "T.xml";
+            fs::path outputXml{ tokensFileName };
+            std::ofstream tokenstFile(outputXml.fullFileName());
+            tokenizer.printTokens(tokenstFile);
+            tokenstFile.close();
 
-        // Write Compiler XML
-        outputXml = input;
-        outputXml.replace_extension("xml");
-        std::ofstream compilerFile(outputXml.fullFileName());
-        compiler.print(compilerFile);
-        compilerFile.close();
+            // Write Compiler XML
+            outputXml = input;
+            outputXml.replace_extension("xml");
+            std::ofstream compilerFile(outputXml.fullFileName());
+            compiler.print(compilerFile);
+            compilerFile.close();
+        }
     }
     catch(const std::exception& e)
     {
@@ -41,10 +48,15 @@ int compileJackFile(const fs::path& input)
 
 int main(int argc, char* argv[])
 {
+    bool outputXML{};
     if (argc <= 1)
     {
         std::cout << "Usage: <input file/directory>" << '\n';
         return 1;
+    }
+    else if(argc > 2)
+    {
+        outputXML = argv[2] == "-outputXML";
     }
     
     std::string pathName{argv[1]};
@@ -54,7 +66,7 @@ int main(int argc, char* argv[])
     fs::path input{ pathName };
     if (input.extension() == ".jack")
     {
-        return compileJackFile(input);
+        return compileJackFile(input, outputXML);
     }
     else if(DIR* dir = opendir(argv[1]))
     {
@@ -67,7 +79,7 @@ int main(int argc, char* argv[])
                 fs::path curFile(pathName + "/" + dirEnt->d_name);
                 if (curFile.extension() == ".jack")
                 {
-                    int compilerResult = compileJackFile(curFile);
+                    int compilerResult = compileJackFile(curFile, outputXML);
                     result = compilerResult > result ? compilerResult : result;
                 }
             }

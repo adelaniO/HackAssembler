@@ -107,118 +107,354 @@ TEST(SymbolTables , ClassAndMethod)
     }
 }
 
-TEST(Compiler, CompileIfStatements)
+class TestWriter : public Compiler::VMWriter
 {
-    Compiler::Tokenizer t1{};
-    Compiler::CompilationEngine c1{&t1};
-     // Expressionless condition if
-    t1.parseLine("if (key) { let exit = exit; }");
-    c1.compileIfStatement();
+public:
+    virtual void write(const std::string line) override { m_data.emplace_back(line); }
+    std::vector<std::string> m_data;
+    virtual void clear() override
     {
+        m_data.clear();
+        VMWriter::resetLabelIndex();
     }
+};
 
-    // Expression condition if
-    c1.clearData();
-    t1.parseLine("if (key = 81)  { let exit = true; }     // q key");
-    c1.compileIfStatement();
+TEST(Compiler, CompileExpressions)
+{
+    Compiler::Tokenizer tokens{};
+    TestWriter writer{};
+    Compiler::CompilationEngine compiler{&tokens, &writer};
+    compiler.clearData();
+    tokens.parseLine("class Test {");
+    tokens.parseLine("   static int a;");
+    tokens.parseLine("   field int b;");
+    tokens.parseLine("   method int test(int dx) {");
+    tokens.parseLine("      let a = b + dx;");
+    tokens.parseLine("      return a;");
+    tokens.parseLine("   }");
+    tokens.parseLine("}");
+    compiler.startCompilation();
     {
+        ASSERT_THAT(writer.m_data.size(), 9);
+        EXPECT_THAT(writer.m_data[0], "function Test.test 0");
+        EXPECT_THAT(writer.m_data[1], "push argument 0");
+        EXPECT_THAT(writer.m_data[2], "pop pointer 0");
+        EXPECT_THAT(writer.m_data[3], "push this 0");
+        EXPECT_THAT(writer.m_data[4], "push argument 1");
+        EXPECT_THAT(writer.m_data[5], "add");
+        EXPECT_THAT(writer.m_data[6], "pop static 0");
+        EXPECT_THAT(writer.m_data[7], "push static 0");
+        EXPECT_THAT(writer.m_data[8], "return");
     }
+}
 
-    // Complete Expressionless if/else Statement
-    c1.clearData();
-    t1.parseLine("if (b) {");
-    t1.parseLine("}");
-    t1.parseLine("else {");
-    t1.parseLine("}");
-    c1.compileIfStatement();
+TEST(Compiler, CompileStringConstants)
+{
+    Compiler::Tokenizer tokens{};
+    TestWriter writer{};
+    Compiler::CompilationEngine compiler{&tokens, &writer};
+    compiler.clearData();
+    tokens.parseLine("class Test {");
+    tokens.parseLine("    function void test() {");
+    tokens.parseLine("      var String str;");
+    tokens.parseLine("      let str = \"STR CON\";");
+    tokens.parseLine("      return;");
+    tokens.parseLine("    }");
+    tokens.parseLine("}");
+    tokens.parseLine("");
+    tokens.parseLine("");
+    tokens.parseLine("");
+    compiler.startCompilation();
     {
+        size_t i{};
+        //ASSERT_THAT(writer.m_data.size(), 20);
+        EXPECT_THAT(writer.m_data[i++], "function Test.test 1");
+        EXPECT_THAT(writer.m_data[i++], "push constant 7");
+        EXPECT_THAT(writer.m_data[i++], "call String.new 1");
+        EXPECT_THAT(writer.m_data[i++], "push constant 83");
+        EXPECT_THAT(writer.m_data[i++], "call String.appendChar 2");
+        EXPECT_THAT(writer.m_data[i++], "push constant 84");
+        EXPECT_THAT(writer.m_data[i++], "call String.appendChar 2");
+        EXPECT_THAT(writer.m_data[i++], "push constant 82");
+        EXPECT_THAT(writer.m_data[i++], "call String.appendChar 2");
+        EXPECT_THAT(writer.m_data[i++], "push constant 32");
+        EXPECT_THAT(writer.m_data[i++], "call String.appendChar 2");
+        EXPECT_THAT(writer.m_data[i++], "push constant 67");
+        EXPECT_THAT(writer.m_data[i++], "call String.appendChar 2");
+        EXPECT_THAT(writer.m_data[i++], "push constant 79");
+        EXPECT_THAT(writer.m_data[i++], "call String.appendChar 2");
+        EXPECT_THAT(writer.m_data[i++], "push constant 78");
+        EXPECT_THAT(writer.m_data[i++], "call String.appendChar 2");
+        EXPECT_THAT(writer.m_data[i++], "pop local 0");
+        EXPECT_THAT(writer.m_data[i++], "push constant 0");
+        EXPECT_THAT(writer.m_data[i++], "return");
     }
+}
 
-    // Complete if/else Statement
-    c1.clearData();
-    t1.parseLine("if (false) {");
-    t1.parseLine("    let s = \"string constant\";");
-    t1.parseLine("    let s = null;");
-    t1.parseLine("    let a[1] = a[2];");
-    t1.parseLine("}");
-    t1.parseLine("else {              // There is no else keyword in the Square files.");
-    t1.parseLine("    let i = i * (-j);");
-    t1.parseLine("    let j = j / (-2);   // note: unary negate constant 2");
-    t1.parseLine("    let i = i | j;");
-    t1.parseLine("}");
-    c1.compileIfStatement();
+TEST(Compiler, CompileUnaryOperators)
+{
+    Compiler::Tokenizer tokens{};
+    TestWriter writer{};
+    Compiler::CompilationEngine compiler{&tokens, &writer};
+    compiler.clearData();
+    tokens.parseLine("class Test {");
+    tokens.parseLine("    function void test() {");
+    tokens.parseLine("      var int i;");
+    tokens.parseLine("      let i = -3;");
+    tokens.parseLine("      let i = ~i;");
+    tokens.parseLine("      return;");
+    tokens.parseLine("    }");
+    tokens.parseLine("}");
+    compiler.startCompilation();
     {
+        size_t i{};
+        ASSERT_THAT(writer.m_data.size(), 9);
+        EXPECT_THAT(writer.m_data[i++], "function Test.test 1");
+        EXPECT_THAT(writer.m_data[i++], "push constant 3");
+        EXPECT_THAT(writer.m_data[i++], "neg");
+        EXPECT_THAT(writer.m_data[i++], "pop local 0");
+        EXPECT_THAT(writer.m_data[i++], "push local 0");
+        EXPECT_THAT(writer.m_data[i++], "not");
+        EXPECT_THAT(writer.m_data[i++], "pop local 0");
+        EXPECT_THAT(writer.m_data[i++], "push constant 0");
+        EXPECT_THAT(writer.m_data[i++], "return");
+    }
+}
+
+TEST(Compiler, CompileIFStatements)
+{
+    Compiler::Tokenizer tokens{};
+    TestWriter writer{};
+    Compiler::CompilationEngine compiler{&tokens, &writer};
+    compiler.clearData();
+    tokens.parseLine("class Test {");
+    tokens.parseLine("   function void test(int a) {");
+    tokens.parseLine("      if(a){}");
+    tokens.parseLine("      return;");
+    tokens.parseLine("   }");
+    tokens.parseLine("}");
+    compiler.startCompilation();
+    {
+        const std::string L1 = "Test_IF_FALSE0";
+        const std::string L2 = "Test_IF_END0";
+        ASSERT_THAT(writer.m_data.size(), 9);
+        EXPECT_THAT(writer.m_data[0], "function Test.test 0");
+        EXPECT_THAT(writer.m_data[1], "push argument 0");
+        EXPECT_THAT(writer.m_data[2], "not");
+        EXPECT_THAT(writer.m_data[3], "if-goto " + L1);
+        // true statements go here
+        EXPECT_THAT(writer.m_data[4], "goto " + L2);
+        EXPECT_THAT(writer.m_data[5], "label " + L1);
+        // false statements go here
+        EXPECT_THAT(writer.m_data[6], "label " + L2);
+        EXPECT_THAT(writer.m_data[7], "push constant 0");
+        EXPECT_THAT(writer.m_data[8], "return");
     }
 }
 
 TEST(Compiler, CompileWhileStatements)
 {
-    Compiler::Tokenizer t1{};
-    Compiler::CompilationEngine c1{&t1};
-     // Expressionless condition if
-    t1.parseLine("while (key) {");
-    t1.parseLine("   let key = key;");
-    t1.parseLine("   do moveSquare();");
-    t1.parseLine("}");
-    c1.compileWhileStatement();
+    Compiler::Tokenizer tokens{};
+    TestWriter writer{};
+    Compiler::CompilationEngine compiler{&tokens, &writer};
+    compiler.clearData();
+    tokens.parseLine("class Test {");
+    tokens.parseLine("   function void test(int a) {");
+    tokens.parseLine("      while(a){}");
+    tokens.parseLine("      return;");
+    tokens.parseLine("   }");
+    tokens.parseLine("}");
+    compiler.startCompilation();
     {
+        const std::string L1 = "Test_WHILE_EXP0";
+        const std::string L2 = "Test_WHILE_END0";
+        ASSERT_THAT(writer.m_data.size(), 9);
+        EXPECT_THAT(writer.m_data[0], "function Test.test 0");
+        EXPECT_THAT(writer.m_data[1], "label " + L1);
+        EXPECT_THAT(writer.m_data[2], "push argument 0");
+        EXPECT_THAT(writer.m_data[3], "not");
+        EXPECT_THAT(writer.m_data[4], "if-goto " + L2);
+        // while statements go here
+        EXPECT_THAT(writer.m_data[5], "goto " + L1);
+        EXPECT_THAT(writer.m_data[6], "label " + L2);
+        EXPECT_THAT(writer.m_data[7], "push constant 0");
+        EXPECT_THAT(writer.m_data[8], "return");
     }
 }
 
-TEST(Compiler, CompileDoStatements)
+TEST(Compiler, CompileObjectConstruction)
 {
-    Compiler::Tokenizer t1{};
-    Compiler::CompilationEngine c1{&t1};
-     // Expressionless condition if
-    t1.parseLine("do moveSquare();"); // Subroutine call
-    c1.compileDoStatement();
+    Compiler::Tokenizer tokens{};
+    TestWriter writer{};
+    Compiler::CompilationEngine compiler{&tokens, &writer};
+    compiler.clearData();
+    tokens.parseLine("class Test {");
+    tokens.parseLine("    constructor Test new()");
+    tokens.parseLine("    {");
+    tokens.parseLine("      return this;");
+    tokens.parseLine("    }");
+    tokens.parseLine("    function void test() {");
+    tokens.parseLine("      var Test y;");
+    tokens.parseLine("      let y = Test.new();");
+    tokens.parseLine("      return;");
+    tokens.parseLine("   }");
+    tokens.parseLine("}");
+    compiler.startCompilation();
     {
-    }
-
-    c1.clearData();
-    t1.parseLine("do Sys.wait(direction);"); // Class function call
-    c1.compileDoStatement();
-    {
-    }
-
-    c1.clearData();
-    t1.parseLine("do Screen.drawRectangle((x + size) - 1, y, x + size, y + size);"); // Class function call with ful expression
-    c1.compileDoStatement();
-    {
+        ASSERT_THAT(writer.m_data.size(), 11);
+        EXPECT_THAT(writer.m_data[0], "function Test.new 0");
+        EXPECT_THAT(writer.m_data[1], "push constant 0");
+        EXPECT_THAT(writer.m_data[2], "call Memory.alloc 1");
+        EXPECT_THAT(writer.m_data[3], "pop pointer 0");
+        EXPECT_THAT(writer.m_data[4], "push pointer 0");
+        EXPECT_THAT(writer.m_data[5], "return");
+        EXPECT_THAT(writer.m_data[6], "function Test.test 1");
+        EXPECT_THAT(writer.m_data[7], "call Test.new 0");
+        EXPECT_THAT(writer.m_data[8], "pop local 0");
+        EXPECT_THAT(writer.m_data[9], "push constant 0");
+        EXPECT_THAT(writer.m_data[10],"return");
     }
 }
 
-TEST(Compiler, CompileReturnStatements)
+TEST(Compiler, CompileArrays)
 {
-    Compiler::Tokenizer t1{};
-    Compiler::CompilationEngine c1{&t1};
-     // Expressionless condition if
-    t1.parseLine("return;"); // Void return
-    c1.compileReturnStatement();
+    Compiler::Tokenizer tokens{};
+    TestWriter writer{};
+    Compiler::CompilationEngine compiler{&tokens, &writer};
+    compiler.clearData();
+    tokens.parseLine("class Test {");
+    tokens.parseLine("    function void test() {");
+    tokens.parseLine("      var Array arr;");
+    tokens.parseLine("      var int i;");
+    tokens.parseLine("      let i = 0;");
+    tokens.parseLine("      let arr = Array.new(10);");
+    tokens.parseLine("      let arr[i] = 4;");
+    tokens.parseLine("      let arr[1] = 8;");
+    tokens.parseLine("      let arr[3] = arr[6];");
+    tokens.parseLine("      return;");
+    tokens.parseLine("    }");
+    tokens.parseLine("}");
+    compiler.startCompilation();
     {
-    }
-
-    c1.clearData();
-    t1.parseLine("return this;"); // Variable return
-    c1.compileReturnStatement();
-    {
+        size_t i{};
+        ASSERT_THAT(writer.m_data.size(), 36);
+        EXPECT_THAT(writer.m_data[i++], "function Test.test 2");
+        EXPECT_THAT(writer.m_data[i++], "push constant 0");
+        EXPECT_THAT(writer.m_data[i++], "pop local 1");
+        EXPECT_THAT(writer.m_data[i++], "push constant 10");
+        EXPECT_THAT(writer.m_data[i++], "call Array.new 1");
+        EXPECT_THAT(writer.m_data[i++], "pop local 0");
+        EXPECT_THAT(writer.m_data[i++], "push local 1");
+        EXPECT_THAT(writer.m_data[i++], "push local 0");
+        EXPECT_THAT(writer.m_data[i++], "add");
+        EXPECT_THAT(writer.m_data[i++], "push constant 4");
+        EXPECT_THAT(writer.m_data[i++], "pop temp 0");
+        EXPECT_THAT(writer.m_data[i++], "pop pointer 1");
+        EXPECT_THAT(writer.m_data[i++], "push temp 0");
+        EXPECT_THAT(writer.m_data[i++], "pop that 0");
+        EXPECT_THAT(writer.m_data[i++], "push constant 1");
+        EXPECT_THAT(writer.m_data[i++], "push local 0");
+        EXPECT_THAT(writer.m_data[i++], "add");
+        EXPECT_THAT(writer.m_data[i++], "push constant 8");
+        EXPECT_THAT(writer.m_data[i++], "pop temp 0");
+        EXPECT_THAT(writer.m_data[i++], "pop pointer 1");
+        EXPECT_THAT(writer.m_data[i++], "push temp 0");
+        EXPECT_THAT(writer.m_data[i++], "pop that 0");
+        EXPECT_THAT(writer.m_data[i++], "push constant 3");
+        EXPECT_THAT(writer.m_data[i++], "push local 0");
+        EXPECT_THAT(writer.m_data[i++], "add");
+        EXPECT_THAT(writer.m_data[i++], "push constant 6");
+        EXPECT_THAT(writer.m_data[i++], "push local 0");
+        EXPECT_THAT(writer.m_data[i++], "add");
+        EXPECT_THAT(writer.m_data[i++], "pop pointer 1");
+        EXPECT_THAT(writer.m_data[i++], "push that 0");
+        EXPECT_THAT(writer.m_data[i++], "pop temp 0");
+        EXPECT_THAT(writer.m_data[i++], "pop pointer 1");
+        EXPECT_THAT(writer.m_data[i++], "push temp 0");
+        EXPECT_THAT(writer.m_data[i++], "pop that 0");
+        EXPECT_THAT(writer.m_data[i++], "push constant 0");
+        EXPECT_THAT(writer.m_data[i++], "return");
     }
 }
 
-TEST(Compiler, CompileSubroutineDec)
+TEST(Compiler, CompileFunctionCall)
 {
-    Compiler::Tokenizer t1{};
-    Compiler::CompilationEngine c1{&t1};
-     // Empty
-    t1.parseLine("function void Main() {}");
-    c1.compileSubroutineDecs();
+    Compiler::Tokenizer tokens{};
+    TestWriter writer{};
+    Compiler::CompilationEngine compiler{&tokens, &writer};
+    compiler.clearData();
+    tokens.parseLine("class Test {");
+    tokens.parseLine("    method void test() {");
+    tokens.parseLine("      var int y;");
+    tokens.parseLine("      let y = Test.test2();");
+    tokens.parseLine("      do Test.test2();");
+    tokens.parseLine("      return;");
+    tokens.parseLine("    }");
+    tokens.parseLine("    function int test2() { return 1; }");
+    tokens.parseLine("}");
+    compiler.startCompilation();
     {
+        size_t i{};
+        ASSERT_THAT(writer.m_data.size(), 12);
+        EXPECT_THAT(writer.m_data[i++], "function Test.test 1");
+        EXPECT_THAT(writer.m_data[i++], "push argument 0");
+        EXPECT_THAT(writer.m_data[i++], "pop pointer 0");
+        EXPECT_THAT(writer.m_data[i++], "call Test.test2 0");
+        EXPECT_THAT(writer.m_data[i++], "pop local 0");
+        EXPECT_THAT(writer.m_data[i++], "call Test.test2 0");
+        EXPECT_THAT(writer.m_data[i++], "pop temp 0");
+        EXPECT_THAT(writer.m_data[i++], "push constant 0");
+        EXPECT_THAT(writer.m_data[i++], "return");
+        EXPECT_THAT(writer.m_data[i++], "function Test.test2 0");
+        EXPECT_THAT(writer.m_data[i++], "push constant 1");
+        EXPECT_THAT(writer.m_data[i++], "return");
     }
+}
 
-    // Non void return type
-    c1.clearData();
-    t1.parseLine("constructor SquareGame new() {}");
-    c1.compileSubroutineDecs();
+TEST(Compiler, CompileMethodCall)
+{
+    Compiler::Tokenizer tokens{};
+    TestWriter writer{};
+    Compiler::CompilationEngine compiler{&tokens, &writer};
+    compiler.clearData();
+    tokens.parseLine("class Test {");
+    tokens.parseLine("    constructor Test new() { return this; }");
+    tokens.parseLine("    method void test() {");
+    tokens.parseLine("      var Test y;");
+    tokens.parseLine("      let y = Test.new();");
+    tokens.parseLine("      do y.test2();");
+    tokens.parseLine("      do test2();");
+    tokens.parseLine("      return;");
+    tokens.parseLine("    }");
+    tokens.parseLine("    method void test2() { return; }");
+    tokens.parseLine("}");
+    compiler.startCompilation();
     {
+        size_t i{};
+        ASSERT_THAT(writer.m_data.size(), 24);
+        EXPECT_THAT(writer.m_data[i++], "function Test.new 0");
+        EXPECT_THAT(writer.m_data[i++], "push constant 0");
+        EXPECT_THAT(writer.m_data[i++], "call Memory.alloc 1");
+        EXPECT_THAT(writer.m_data[i++], "pop pointer 0");
+        EXPECT_THAT(writer.m_data[i++], "push pointer 0");
+        EXPECT_THAT(writer.m_data[i++], "return");
+        EXPECT_THAT(writer.m_data[i++], "function Test.test 1");
+        EXPECT_THAT(writer.m_data[i++], "push argument 0");
+        EXPECT_THAT(writer.m_data[i++], "pop pointer 0");
+        EXPECT_THAT(writer.m_data[i++], "call Test.new 0");
+        EXPECT_THAT(writer.m_data[i++],"pop local 0");
+        EXPECT_THAT(writer.m_data[i++],"push local 0");
+        EXPECT_THAT(writer.m_data[i++],"call Test.test2 1");
+        EXPECT_THAT(writer.m_data[i++],"pop temp 0");
+        EXPECT_THAT(writer.m_data[i++],"push pointer 0");
+        EXPECT_THAT(writer.m_data[i++],"call Test.test2 1");
+        EXPECT_THAT(writer.m_data[i++],"pop temp 0");
+        EXPECT_THAT(writer.m_data[i++],"push constant 0");
+        EXPECT_THAT(writer.m_data[i++],"return");
+        EXPECT_THAT(writer.m_data[i++],"function Test.test2 0");
+        EXPECT_THAT(writer.m_data[i++],"push argument 0");
+        EXPECT_THAT(writer.m_data[i++],"pop pointer 0");
+        EXPECT_THAT(writer.m_data[i++],"push constant 0");
+        EXPECT_THAT(writer.m_data[i++],"return");
     }
 }
