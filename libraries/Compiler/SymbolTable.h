@@ -95,7 +95,7 @@ namespace Compiler
     private:
         const Symbol& find(const std::string& name) const
         {
-            auto& search = m_subroutineSymbolTable.find(name);
+            auto search = m_subroutineSymbolTable.find(name);
             if(search != m_subroutineSymbolTable.end())
                 return search->second;
             search = m_classSymbolTable.find(name);

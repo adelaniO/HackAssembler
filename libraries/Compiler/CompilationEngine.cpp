@@ -30,7 +30,6 @@ namespace Compiler
     {
         std::string name, type;
         SymbolKind kind;
-        int index;
         while(m_tokens->hasMoreTokens() && (m_tokens->currentString() == "static" || m_tokens->currentString() == "field"))
         {
             XMLWriter xmlWriter{ "classVarDec", m_level, &m_data };
@@ -110,7 +109,6 @@ namespace Compiler
     {
         XMLWriter xmlWriter{"varDec", m_level, &m_data};
         std::string name, type;
-        int index;
         consume("var");
         bool firstVar{true};
         while (m_tokens->currentString() != ";")
@@ -134,7 +132,6 @@ namespace Compiler
     {
         XMLWriter xmlWriter{"parameterList", m_level, &m_data};
         std::string name, type;
-        int index;
         while (m_tokens->currentString() != ")")
         {
             type = m_tokens->currentString();
